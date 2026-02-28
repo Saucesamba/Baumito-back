@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: campus_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: campus_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - campus_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: campus_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - campus_network
+
+  minio:
+    image: minio/minio
+    container_name: campus_minio
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - campus_network
+
+  zookeeper:
+    image: bitnamilegacy/zookeeper:latest
+    container_name: campus_zookeeper
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - campus_network
+
+  kafka:
+    image: bitnamilegacy/kafka:latest
+    container_name: campus_kafka
+    depends_on:
+      - zookeeper
+    environment:
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    networks:
+      - campus_network
+  app:
+    build:
+      context: ../
+      dockerfile: deployments/Dockerfile
+    container_name: campus_app
+    depends_on:
+      - db
+      - redis
+      - minio
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      APP_PORT: 8080
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: campus_db
+      REDIS_HOST: redis:6379
+      MINIO_ENDPOINT: minio:9000
+      KAFKA_BROKERS: kafka:9092
+    networks:
+      - campus_network
+
+networks:
+  campus_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
