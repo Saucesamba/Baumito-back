@@ -88,6 +88,8 @@ services:
       DB_NAME: campus_db
       REDIS_HOST: redis:6379
       MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
       KAFKA_BROKERS: kafka:9092
     networks:
       - campus_network

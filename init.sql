@@ -245,4 +245,19 @@ CREATE INDEX idx_ads_status_active ON advertisements(status) WHERE status = 'act
 CREATE INDEX idx_messages_chat_created ON messages(chat_id, created_at DESC);
 CREATE INDEX idx_users_uni ON users(university_id);
 
+-- 1. Добавляем основные категории для кампуса
+INSERT INTO categories (name, slug) VALUES
+                                        ('Учебники и книги', 'books'),
+                                        ('Электроника', 'electronics'),
+                                        ('Бытовая техника', 'appliances'),
+                                        ('Одежда и аксессуары', 'clothing');
+
+-- 2. Добавляем твой ВУЗ (если еще не добавил)
+INSERT INTO universities (name, domain, city)
+VALUES ('МГТУ им. Н.Э. Баумана', 'bmstu.ru', 'Москва');
+
+-- 3. Добавляем локацию (общежитие)
+INSERT INTO campus_locations (university_id, name, address)
+VALUES (1, 'Общежитие №3', 'Стилобат');
+
 COMMIT;

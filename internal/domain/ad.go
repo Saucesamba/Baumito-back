@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +18,7 @@ const (
 )
 
 // Advertisement - модель товара в кампусе
-type Advertisement struct {
+type Ad struct {
 	ID           uuid.UUID              `json:"id"`
 	UserID       uuid.UUID              `json:"user_id"`
 	CategoryID   int                    `json:"category_id"`
@@ -36,19 +37,35 @@ type Advertisement struct {
 	UpdatedAt    time.Time              `json:"updated_at"`
 }
 
+type AdImage struct {
+	ID       uuid.UUID `json:"id"`
+	AdID     uuid.UUID `json:"ad_id"`
+	ImageURL string    `json:"image_url"`
+	IsMain   bool      `json:"is_main"`
+}
+
+type AdFilter struct {
+	UniversityID int
+	CategoryID   int
+	SearchQuery  string
+	Limit        int
+	Offset       int
+}
+
 // AdRepository - контракт для БД
 type AdRepository interface {
-	Create(ctx context.Context, ad *Advertisement) error
-	GetByID(ctx context.Context, id uuid.UUID) (*Advertisement, error)
-	Update(ctx context.Context, ad *Advertisement) error
+	Create(ctx context.Context, ad *Ad) error
+	GetByID(ctx context.Context, id uuid.UUID) (*Ad, error)
+	Update(ctx context.Context, ad *Ad) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	// Fetch - для листинга с фильтрами (вуз, категория, цена)
-	Fetch(ctx context.Context, universityID int, categoryID int, limit, offset int) ([]*Advertisement, error)
+	AddImage(ctx context.Context, img *AdImage) error
+	Fetch(ctx context.Context, filter AdFilter) ([]*Ad, error)
 }
 
 // AdUsecase - правила создания и модерации
 type AdUsecase interface {
-	CreateAd(ctx context.Context, ad *Advertisement) error
-	GetAd(ctx context.Context, id uuid.UUID) (*Advertisement, error)
-	ListAds(ctx context.Context, universityID int, categoryID int, page int) ([]*Advertisement, error)
+	CreateAd(ctx context.Context, ad *Ad) error
+	GetAd(ctx context.Context, id uuid.UUID) (*Ad, error)
+	ListAds(ctx context.Context, filter AdFilter, page int) ([]*Ad, error)
+	UploadImage(ctx context.Context, adID uuid.UUID, fileName string, file io.Reader, size int64) error
 }

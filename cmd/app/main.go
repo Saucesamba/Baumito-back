@@ -1,6 +1,11 @@
 package main
 
 import (
+	"Avito-back/internal/delivery/http/middleware"
+	"Avito-back/internal/repository/redis"
+	"Avito-back/internal/repository/s3"
+	"Avito-back/internal/usecase/ad"
+	"Avito-back/internal/usecase/chat"
 	"context"
 	"log"
 	"net/http"
@@ -30,16 +35,37 @@ func main() {
 
 	// 3. Инициализация слоев (Dependency Injection)
 
+	s3Endpoint := os.Getenv("MINIO_ENDPOINT")       // "minio:9000"
+	s3AccessKey := os.Getenv("MINIO_ROOT_USER")     // "minioadmin"
+	s3SecretKey := os.Getenv("MINIO_ROOT_PASSWORD") // "minioadmin"
+	s3Bucket := "campus-images"                     // Название папки для фото
+
+	// 2. Инициализируем S3 Репозиторий
+	s3Repo, err := s3.NewFileRepository(s3Endpoint, s3AccessKey, s3SecretKey, s3Bucket)
+	if err != nil {
+		log.Fatalf("Failed to connect to MinIO: %v", err)
+	}
+
 	// Repository (Слой работы с БД)
 	userRepo := postgres.NewUserRepository(db)
+	adRepo := postgres.NewAdRepository(db)
 
 	// Usecase (Слой бизнес-логики)
 	userUsecase := user.NewUserUsecase(userRepo)
+
+	cacheRepo := redis.NewAdCacheRepository(os.Getenv("REDIS_HOST")) // "redis:6379"
+	adUsecase := ad.NewAdUsecase(adRepo, s3Repo, cacheRepo)
 
 	// Delivery/Handler (Слой HTTP интерфейса)
 	userHandler := &v1.UserHandler{
 		Usecase: userUsecase,
 	}
+	adHandler := &v1.AdHandler{Usecase: adUsecase}
+
+	// Инициализация
+	chatRepo := postgres.NewChatRepository(db)
+	chatUsecase := chat.NewChatUsecase(chatRepo, adRepo)
+	chatHandler := &v1.ChatHandler{Usecase: chatUsecase}
 
 	// 4. Настройка роутера Gin
 	router := gin.Default()
@@ -53,6 +79,8 @@ func main() {
 		})
 	})
 
+	jwtSecret := "your-super-secret-key-for-campus"
+
 	// Группа маршрутов API v1
 	apiV1 := router.Group("/api/v1")
 	{
@@ -61,6 +89,22 @@ func main() {
 			auth.POST("/register", userHandler.Register)
 			auth.POST("/login", userHandler.Login) // Добавили эту строку
 		}
+
+		// ЗАЩИЩЕННЫЕ МАРШРУТЫ (только для авторизованных)
+		protected := apiV1.Group("/")
+		protected.Use(middleware.AuthMiddleware(jwtSecret))
+		{
+			protected.POST("/ads", adHandler.Create) // Создать объявление
+			protected.POST("/ads/:id/images", adHandler.UploadImage)
+			// Роуты
+			protected.POST("/chats/messages", chatHandler.Send)           // Отправить сообщение
+			protected.GET("/chats/:id/messages", chatHandler.GetMessages) // Посмотреть переписку
+			protected.GET("/chats", chatHandler.GetMyChats)
+		}
+
+		// ОТКРЫТЫЕ МАРШРУТЫ (смотреть могут все)
+		apiV1.GET("/ads/:id", adHandler.GetByID)
+		apiV1.GET("/ads", adHandler.List)
 	}
 
 	// 5. Настройка и запуск HTTP сервера
