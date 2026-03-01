@@ -61,12 +61,13 @@ func main() {
 		Usecase: userUsecase,
 	}
 	adHandler := &v1.AdHandler{Usecase: adUsecase}
+	wsHandler := v1.NewWsHandler()
 
 	// Инициализация
 	chatRepo := postgres.NewChatRepository(db)
 	brokers := []string{os.Getenv("KAFKA_BROKERS")} // например, "kafka:9092"
 	notificationProducer := kafka.NewNotificationProducer(brokers)
-	chatUsecase := chat.NewChatUsecase(chatRepo, adRepo, notificationProducer)
+	chatUsecase := chat.NewChatUsecase(chatRepo, adRepo, notificationProducer, wsHandler)
 	chatHandler := &v1.ChatHandler{Usecase: chatUsecase}
 
 	// 4. Настройка роутера Gin
@@ -102,6 +103,8 @@ func main() {
 			protected.POST("/chats/messages", chatHandler.Send)           // Отправить сообщение
 			protected.GET("/chats/:id/messages", chatHandler.GetMessages) // Посмотреть переписку
 			protected.GET("/chats", chatHandler.GetMyChats)
+			protected.GET("/ws", wsHandler.HandleWS) // Точка входа в WebSocket
+
 		}
 
 		// ОТКРЫТЫЕ МАРШРУТЫ (смотреть могут все)

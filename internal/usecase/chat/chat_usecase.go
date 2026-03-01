@@ -10,14 +10,19 @@ import (
 )
 
 type chatUsecase struct {
-	chatRepo domain.ChatRepository
-	adRepo   domain.AdRepository
-	notifier *kafka.NotificationProducer // Добавь это поле
-
+	chatRepo   domain.ChatRepository
+	adRepo     domain.AdRepository
+	notifier   *kafka.NotificationProducer // Добавь это поле
+	wsNotifier domain.MessageNotifier      // ДОБАВИЛИ ИНТЕРФЕЙС
 }
 
-func NewChatUsecase(cr domain.ChatRepository, ar domain.AdRepository, n *kafka.NotificationProducer) domain.ChatUsecase {
-	return &chatUsecase{chatRepo: cr, adRepo: ar, notifier: n}
+func NewChatUsecase(cr domain.ChatRepository, ar domain.AdRepository, n *kafka.NotificationProducer, ws domain.MessageNotifier) domain.ChatUsecase {
+	return &chatUsecase{
+		chatRepo:   cr,
+		adRepo:     ar,
+		notifier:   n,
+		wsNotifier: ws,
+	}
 }
 
 func (u *chatUsecase) SendMessage(ctx context.Context, adID, senderID uuid.UUID, content string) error {
@@ -56,6 +61,21 @@ func (u *chatUsecase) SendMessage(ctx context.Context, adID, senderID uuid.UUID,
 			log.Printf("Failed to push to Kafka: %v", err)
 		}
 	}()
+
+	// Определяем, кому отправить мгновенное уведомление (получателю)
+	recipientID := ad.UserID // Продавец
+	if senderID == ad.UserID {
+		chat, _ := u.chatRepo.GetChatByParticipants(ctx, adID, uuid.Nil, uuid.Nil) // Тут нужна логика поиска покупателя
+		recipientID = chat.BuyerID
+	}
+
+	// ОТПРАВЛЯЕМ ЧЕРЕЗ WEBSOCKET (если он онлайн)
+	u.wsNotifier.NotifyUser(recipientID.String(), map[string]interface{}{
+		"type":    "new_message",
+		"content": content,
+		"ad_id":   adID,
+	})
+	
 	return nil
 
 }

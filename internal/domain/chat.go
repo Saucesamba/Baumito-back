@@ -37,3 +37,7 @@ type ChatUsecase interface {
 	GetMessages(ctx context.Context, chatID, userID uuid.UUID) ([]*Message, error)
 	GetMyChats(ctx context.Context, userID uuid.UUID) ([]*Chat, error)
 }
+
+type MessageNotifier interface {
+	NotifyUser(userID string, message interface{})
+}
