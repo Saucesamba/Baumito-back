@@ -1,11 +1,16 @@
 package main
 
 import (
+	"Avito-back/internal/config"
 	"Avito-back/internal/delivery/http/middleware"
+	"Avito-back/internal/delivery/http/v1"
+	"Avito-back/internal/repository/kafka" // Импорт твоего кафка-репозитория
+	"Avito-back/internal/repository/postgres"
 	"Avito-back/internal/repository/redis"
 	"Avito-back/internal/repository/s3"
 	"Avito-back/internal/usecase/ad"
 	"Avito-back/internal/usecase/chat"
+	"Avito-back/internal/usecase/user"
 	"context"
 	"log"
 	"net/http"
@@ -13,11 +18,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"Avito-back/internal/config"
-	"Avito-back/internal/delivery/http/v1"
-	"Avito-back/internal/repository/postgres"
-	"Avito-back/internal/usecase/user"
 
 	"github.com/gin-gonic/gin"
 )
@@ -64,7 +64,9 @@ func main() {
 
 	// Инициализация
 	chatRepo := postgres.NewChatRepository(db)
-	chatUsecase := chat.NewChatUsecase(chatRepo, adRepo)
+	brokers := []string{os.Getenv("KAFKA_BROKERS")} // например, "kafka:9092"
+	notificationProducer := kafka.NewNotificationProducer(brokers)
+	chatUsecase := chat.NewChatUsecase(chatRepo, adRepo, notificationProducer)
 	chatHandler := &v1.ChatHandler{Usecase: chatUsecase}
 
 	// 4. Настройка роутера Gin

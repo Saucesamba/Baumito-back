@@ -2,17 +2,22 @@ package chat
 
 import (
 	"Avito-back/internal/domain"
+	"Avito-back/internal/repository/kafka"
 	"context"
+	"log"
+
 	"github.com/google/uuid"
 )
 
 type chatUsecase struct {
 	chatRepo domain.ChatRepository
 	adRepo   domain.AdRepository
+	notifier *kafka.NotificationProducer // Добавь это поле
+
 }
 
-func NewChatUsecase(chatRepo domain.ChatRepository, adRepo domain.AdRepository) domain.ChatUsecase {
-	return &chatUsecase{chatRepo: chatRepo, adRepo: adRepo}
+func NewChatUsecase(cr domain.ChatRepository, ar domain.AdRepository, n *kafka.NotificationProducer) domain.ChatUsecase {
+	return &chatUsecase{chatRepo: cr, adRepo: ar, notifier: n}
 }
 
 func (u *chatUsecase) SendMessage(ctx context.Context, adID, senderID uuid.UUID, content string) error {
@@ -34,7 +39,25 @@ func (u *chatUsecase) SendMessage(ctx context.Context, adID, senderID uuid.UUID,
 
 	// 3. Сохраняем сообщение
 	msg := &domain.Message{ChatID: chat.ID, SenderID: senderID, Content: content}
-	return u.chatRepo.CreateMessage(ctx, msg)
+	if err := u.chatRepo.CreateMessage(ctx, msg); err != nil {
+		return err
+	}
+
+	// АСИНХРОННАЯ ЧАСТЬ: Кидаем событие в Kafka
+
+	go func() {
+		err = u.notifier.PublishMessageEvent(context.Background(), map[string]interface{}{
+			"type":    "new_message",
+			"chat_id": chat.ID,
+			"sender":  senderID,
+			"text":    content,
+		})
+		if err != nil {
+			log.Printf("Failed to push to Kafka: %v", err)
+		}
+	}()
+	return nil
+
 }
 
 func (u *chatUsecase) GetMessages(ctx context.Context, chatID, userID uuid.UUID) ([]*domain.Message, error) {
