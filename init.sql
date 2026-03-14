@@ -63,7 +63,7 @@ CREATE TABLE users (
                        password_hash VARCHAR(255) NOT NULL,
                        name VARCHAR(100) NOT NULL,
                        avatar_url TEXT,
-
+                       role VARCHAR(20) DEFAULT 'user',
     -- Студенческие данные
                        student_card_id VARCHAR(50),
                        is_verified_student BOOLEAN DEFAULT false,
@@ -245,19 +245,35 @@ CREATE INDEX idx_ads_status_active ON advertisements(status) WHERE status = 'act
 CREATE INDEX idx_messages_chat_created ON messages(chat_id, created_at DESC);
 CREATE INDEX idx_users_uni ON users(university_id);
 
--- 1. Добавляем основные категории для кампуса
-INSERT INTO categories (name, slug) VALUES
-                                        ('Учебники и книги', 'books'),
-                                        ('Электроника', 'electronics'),
-                                        ('Бытовая техника', 'appliances'),
-                                        ('Одежда и аксессуары', 'clothing');
+-- ==========================================
+-- ТЕСТОВЫЕ ДАННЫЕ (Наполнение справочников)
+-- ==========================================
 
--- 2. Добавляем твой ВУЗ (если еще не добавил)
-INSERT INTO universities (name, domain, city)
-VALUES ('МГТУ им. Н.Э. Баумана', 'bmstu.ru', 'Москва');
+-- 1. Добавляем ВУЗ
+INSERT INTO universities (id, name, domain, city)
+VALUES (1, 'МГТУ им. Н.Э. Баумана', 'bmstu.ru', 'Москва')
+    ON CONFLICT DO NOTHING;
 
--- 3. Добавляем локацию (общежитие)
-INSERT INTO campus_locations (university_id, name, address)
-VALUES (1, 'Общежитие №3', 'Стилобат');
+-- 2. Добавляем категории
+INSERT INTO categories (id, name, slug) VALUES
+                                            (1, 'Учебники и книги', 'books'),
+                                            (2, 'Электроника', 'electronics'),
+                                            (3, 'Бытовая техника', 'appliances')
+    ON CONFLICT DO NOTHING;
 
+-- 3. Добавляем АДМИНА
+-- Пароль для входа: admin123
+-- Хеш сгенерирован через bcrypt (DefaultCost)
+INSERT INTO users (id, email, phone, password_hash, name, role, university_id, is_verified_student)
+VALUES (
+           uuid_generate_v4(),
+           'admin@campus.ru',
+           '+70000000000',
+           '$2a$10$XmO9K17vM88yS6.S9O9MSe7I8h8E/kH6vMvV6Z7n7.hGjD6gY9.V6v',
+           'Главный Админ',
+           'admin',
+           1,
+           true
+       )
+    ON CONFLICT DO NOTHING;
 COMMIT;

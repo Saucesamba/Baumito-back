@@ -23,6 +23,7 @@ type User struct {
 	IsBlocked         bool      `json:"is_blocked"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	Role              string    `json:"role"`
 }
 
 // UserRepository - интерфейс для работы с БД (слой Repository)
@@ -31,6 +32,8 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	Update(ctx context.Context, user *User) error
+	UpdateStatus(ctx context.Context, userID uuid.UUID, isBlocked bool) error
+	GetAll(ctx context.Context) ([]*User, error)
 }
 
 // UserUsecase - интерфейс бизнес-логики (слой Usecase)
@@ -39,4 +42,5 @@ type UserUsecase interface {
 	Login(ctx context.Context, email, password string) (string, error) // Возвращает JWT токен
 	GetProfile(ctx context.Context, id uuid.UUID) (*User, error)
 	VerifyStudent(ctx context.Context, id uuid.UUID) error
+	BlockUser(ctx context.Context, userID uuid.UUID) error // ДОБАВИТЬ
 }

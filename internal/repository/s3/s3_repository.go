@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -15,23 +16,30 @@ type FileRepository struct {
 }
 
 func NewFileRepository(endpoint, accessKey, secretKey, bucket string) (*FileRepository, error) {
-	// Инициализируем клиент MinIO
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: false, // В докере используем HTTP
+		Secure: false,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Проверяем/создаем бакет (папку для фото)
 	ctx := context.Background()
-	exists, _ := client.BucketExists(ctx, bucket)
+	// 1. Проверяем, существует ли бакет
+	exists, err := client.BucketExists(ctx, bucket)
+	if err != nil {
+		return nil, err
+	}
+
 	if !exists {
+		// 2. Если не существует — создаем
 		err = client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("Bucket %s created successfully", bucket)
+	} else {
+		log.Printf("Bucket %s already exists, skipping creation", bucket)
 	}
 
 	return &FileRepository{client: client, bucketName: bucket}, nil

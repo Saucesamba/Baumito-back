@@ -48,9 +48,10 @@ func (u *userUsecase) Login(ctx context.Context, email, password string) (string
 
 	// 3. Генерируем JWT токен
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID.String(),                          // ID пользователя
-		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(), // Токен живет неделю
-		"iat": time.Now().Unix(),
+		"sub":  user.ID.String(),                          // ID пользователя
+		"role": user.Role,                                 // ТЕПЕРЬ РОЛЬ ВНУТРИ JWT
+		"exp":  time.Now().Add(time.Hour * 24 * 7).Unix(), // Токен живет неделю
+		"iat":  time.Now().Unix(),
 	})
 
 	tokenString, err := token.SignedString([]byte(jwtSecret))
@@ -65,3 +66,7 @@ func (u *userUsecase) GetProfile(ctx context.Context, id uuid.UUID) (*domain.Use
 	return nil, nil
 }
 func (u *userUsecase) VerifyStudent(ctx context.Context, id uuid.UUID) error { return nil }
+
+func (u *userUsecase) BlockUser(ctx context.Context, userID uuid.UUID) error {
+	return u.userRepo.UpdateStatus(ctx, userID, true) // ставим true в is_blocked
+}

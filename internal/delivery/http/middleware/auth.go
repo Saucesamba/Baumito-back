@@ -43,6 +43,7 @@ func AuthMiddleware(secret string) gin.HandlerFunc {
 
 		claims, _ := token.Claims.(jwt.MapClaims)
 		c.Set("userId", claims["sub"])
+		c.Set("userRole", claims["role"]) // ДОБАВИЛИ ЭТУ СТРОКУ
 		c.Next()
 	}
 }

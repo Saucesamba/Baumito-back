@@ -40,12 +40,24 @@ func main() {
 	s3SecretKey := os.Getenv("MINIO_ROOT_PASSWORD") // "minioadmin"
 	s3Bucket := "campus-images"                     // Название папки для фото
 
-	// 2. Инициализируем S3 Репозиторий
-	s3Repo, err := s3.NewFileRepository(s3Endpoint, s3AccessKey, s3SecretKey, s3Bucket)
-	if err != nil {
-		log.Fatalf("Failed to connect to MinIO: %v", err)
+	var s3Repo *s3.FileRepository
+	var s3Err error
+
+	// ЛОГИКА ОЖИДАНИЯ (Retry)
+	log.Println("Connecting to MinIO...")
+	for i := 0; i < 10; i++ {
+		s3Repo, s3Err = s3.NewFileRepository(s3Endpoint, s3AccessKey, s3SecretKey, s3Bucket)
+		if s3Err == nil {
+			log.Println("Successfully connected to MinIO!")
+			break
+		}
+		log.Printf("MinIO not ready yet, retrying in 2 seconds... (attempt %d/10). Error: %v", i+1, s3Err)
+		time.Sleep(2 * time.Second)
 	}
 
+	if s3Err != nil {
+		log.Fatalf("Failed to connect to MinIO after all attempts: %v", s3Err)
+	}
 	// Repository (Слой работы с БД)
 	userRepo := postgres.NewUserRepository(db)
 	adRepo := postgres.NewAdRepository(db)
@@ -99,12 +111,24 @@ func main() {
 		{
 			protected.POST("/ads", adHandler.Create) // Создать объявление
 			protected.POST("/ads/:id/images", adHandler.UploadImage)
+			protected.PUT("/ads/:id", adHandler.Update) // НОВОЕ
+			protected.DELETE("/ads/:id", adHandler.Delete)
+			protected.POST("/ads/:id/favorite", adHandler.AddFavorite) // НОВОЕ
+			protected.GET("/favorites", adHandler.GetFavorites)
+			protected.POST("/ads/:id/report", adHandler.ReportAd) // Жалоба
+
 			// Роуты
 			protected.POST("/chats/messages", chatHandler.Send)           // Отправить сообщение
 			protected.GET("/chats/:id/messages", chatHandler.GetMessages) // Посмотреть переписку
 			protected.GET("/chats", chatHandler.GetMyChats)
 			protected.GET("/ws", wsHandler.HandleWS) // Точка входа в WebSocket
-
+			// 2. Вложенная группа ТОЛЬКО ДЛЯ АДМИНОВ
+			admin := protected.Group("/admin")
+			admin.Use(middleware.AdminMiddleware())
+			{
+				admin.PATCH("/ads/:id/status", adHandler.ModerateAd) // Модерация
+				admin.PATCH("/users/:id/block", userHandler.BlockUser)
+			} // Блокировка
 		}
 
 		// ОТКРЫТЫЕ МАРШРУТЫ (смотреть могут все)

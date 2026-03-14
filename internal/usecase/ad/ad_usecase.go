@@ -5,6 +5,7 @@ import (
 	"Avito-back/internal/repository/redis"
 	"Avito-back/internal/repository/s3"
 	"context"
+	"errors"
 	"io"
 
 	"github.com/google/uuid"
@@ -70,4 +71,69 @@ func (u *adUsecase) UploadImage(ctx context.Context, adID uuid.UUID, fileName st
 		IsMain:   false, // Можно добавить логику проверки первой картинки
 	}
 	return u.adRepo.AddImage(ctx, img)
+}
+
+func (u *adUsecase) UpdateAd(ctx context.Context, ad *domain.Ad, userID uuid.UUID) error {
+	existing, err := u.adRepo.GetByID(ctx, ad.ID)
+	if err != nil {
+		return err
+	}
+
+	if existing.UserID != userID {
+		return errors.New("permission denied: you are not the owner")
+	}
+
+	return u.adRepo.Update(ctx, ad)
+}
+
+func (u *adUsecase) DeleteAd(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	existing, err := u.adRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if existing.UserID != userID {
+		return errors.New("permission denied")
+	}
+
+	return u.adRepo.Delete(ctx, id)
+}
+
+func (u *adUsecase) ToggleFavorite(ctx context.Context, userID, adID uuid.UUID) error {
+	// Для простоты: сначала пробуем удалить, если не удалилось (0 строк), значит добавляем.
+	// Но лучше сделать отдельную ручку или проверку существования. Сделаем просто добавление:
+	return u.adRepo.AddToFavorites(ctx, userID, adID)
+}
+
+func (u *adUsecase) ListFavorites(ctx context.Context, userID uuid.UUID) ([]*domain.Ad, error) {
+	return u.adRepo.GetFavorites(ctx, userID)
+}
+
+func (u *adUsecase) Moderate(ctx context.Context, adID uuid.UUID, status string, reason string) error {
+	return u.adRepo.UpdateStatus(ctx, adID, status, reason)
+}
+
+func (u *adUsecase) ReportAd(ctx context.Context, report *domain.Report) error {
+	// Можно добавить проверку: существует ли вообще такое объявление
+	_, err := u.adRepo.GetByID(ctx, report.AdID)
+	if err != nil {
+		return errors.New("advertisement not found")
+	}
+
+	return u.adRepo.CreateReport(ctx, report)
+}
+
+// 1. Метод модерации (для админа)
+func (u *adUsecase) UpdateStatus(ctx context.Context, adID uuid.UUID, status string, reason string) error {
+	return u.adRepo.UpdateStatus(ctx, adID, status, reason)
+}
+
+// 2. Метод создания жалобы
+func (u *adUsecase) CreateReport(ctx context.Context, report *domain.Report) error {
+	return u.adRepo.CreateReport(ctx, report)
+}
+
+// 3. Метод получения списка всех жалоб (для админа)
+func (u *adUsecase) GetReports(ctx context.Context) ([]*domain.Report, error) {
+	return u.adRepo.GetReports(ctx)
 }

@@ -37,6 +37,14 @@ type Ad struct {
 	UpdatedAt    time.Time              `json:"updated_at"`
 }
 
+type Report struct {
+	ID         uuid.UUID `json:"id"`
+	ReporterID uuid.UUID `json:"reporter_id"`
+	AdID       uuid.UUID `json:"ad_id"`
+	Reason     string    `json:"reason"`
+	Status     string    `json:"status"` // 'new', 'reviewed'
+}
+
 type AdImage struct {
 	ID       uuid.UUID `json:"id"`
 	AdID     uuid.UUID `json:"ad_id"`
@@ -60,6 +68,12 @@ type AdRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	AddImage(ctx context.Context, img *AdImage) error
 	Fetch(ctx context.Context, filter AdFilter) ([]*Ad, error)
+	AddToFavorites(ctx context.Context, userID, adID uuid.UUID) error
+	RemoveFromFavorites(ctx context.Context, userID, adID uuid.UUID) error
+	GetFavorites(ctx context.Context, userID uuid.UUID) ([]*Ad, error)
+	CreateReport(ctx context.Context, report *Report) error // ДОБАВИТЬ
+	UpdateStatus(ctx context.Context, adID uuid.UUID, status string, reason string) error
+	GetReports(ctx context.Context) ([]*Report, error) // ДОБАВИТЬ ЭТО
 }
 
 // AdUsecase - правила создания и модерации
@@ -68,4 +82,14 @@ type AdUsecase interface {
 	GetAd(ctx context.Context, id uuid.UUID) (*Ad, error)
 	ListAds(ctx context.Context, filter AdFilter, page int) ([]*Ad, error)
 	UploadImage(ctx context.Context, adID uuid.UUID, fileName string, file io.Reader, size int64) error
+	ToggleFavorite(ctx context.Context, userID, adID uuid.UUID) error
+	ListFavorites(ctx context.Context, userID uuid.UUID) ([]*Ad, error)
+	UpdateAd(ctx context.Context, ad *Ad, userID uuid.UUID) error
+	DeleteAd(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	UpdateStatus(ctx context.Context, adID uuid.UUID, status string, reason string) error
+	CreateReport(ctx context.Context, report *Report) error
+	GetReports(ctx context.Context) ([]*Report, error)                                // ДОБАВИТЬ ЭТО
+	Moderate(ctx context.Context, adID uuid.UUID, status string, reason string) error // ДОБАВИТЬ
+	ReportAd(ctx context.Context, report *Report) error                               // ДОБАВИТЬ
+
 }
